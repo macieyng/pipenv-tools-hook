@@ -77,6 +77,8 @@ class PipenvToolsHook:
                         text=True,
                         check=False,
                     )
+                    sys.stdout.write(result.stdout)
+                    sys.stderr.write(result.stderr)
                 else:
                     # If not, use pipenv run
                     result = subprocess.run(
@@ -85,6 +87,8 @@ class PipenvToolsHook:
                         text=True,
                         check=False,
                     )
+                    sys.stdout.write(result.stdout)
+                    sys.stderr.write(result.stderr)
                 return result.returncode == 0
             except FileNotFoundError:
                 return False
@@ -187,11 +191,22 @@ class PipenvToolsHook:
             with chdir(pipfile_dir):
                 # Check if the tool is installed
                 if not self.is_tool_installed(pipfile_dir):
-                    sys.stderr.write(
-                        f"Error: {self.tool} is not installed in the"
-                        f" Pipenv environment at {pipfile_dir}\n"
-                        f"Please install it using: pipenv install {self.tool}\n",
+                    sys.stdout.write(f"Installing {self.tool} in {pipfile_dir}...\n")
+
+                    cmd = ["pipenv", "install", self.tool, "--dev"]
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        check=False,
                     )
+
+                    if result.returncode != 0:
+                        sys.stderr.write(
+                            f"Error: {self.tool} is not installed in the"
+                            f" Pipenv environment at {pipfile_dir}\n"
+                            f"Please install it using: pipenv install {self.tool}\n",
+                        )
                     return 1
 
                 try:
