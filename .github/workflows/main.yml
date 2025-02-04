@@ -197,8 +197,15 @@ jobs:
       run: |
         # Set version from release tag
         VERSION=${{ steps.get_version.outputs.VERSION }}
-        bumpver update --set-version $VERSION
+        # Update version without git operations
+        bumpver update --no-commit --set-version $VERSION
         echo "new_version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Commit and push changes
+      run: |
+        git add pyproject.toml CHANGELOG.md
+        git commit -m "bump version to ${{ steps.bump.outputs.new_version }}"
+        git push origin HEAD:main
 
   release:
     name: Create Release
