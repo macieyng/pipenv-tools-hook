@@ -65,6 +65,8 @@ style = [
 dependencies = [
     "mypy>=1.8.0",
     "types-setuptools",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
 ]
 
 [tool.hatch.envs.typecheck.scripts]
