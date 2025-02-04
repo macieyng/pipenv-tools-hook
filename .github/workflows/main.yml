@@ -97,6 +97,70 @@ jobs:
           coverage.svg
         if-no-files-found: error
 
+  draft-release:
+    name: Create Draft Release
+    needs: [test, typecheck]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Configure Git
+      run: |
+        git config user.name 'github-actions[bot]'
+        git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bumpver build twine
+
+    - name: Get current version and bump
+      id: bump_version
+      run: |
+        # Get current version
+        CURRENT_VERSION=$(grep '^version = ' pyproject.toml | cut -d'"' -f2)
+        echo "Current version: $CURRENT_VERSION"
+
+        # Bump patch version
+        bumpver update --no-commit --no-tag --patch
+
+        # Get new version
+        NEW_VERSION=$(grep '^version = ' pyproject.toml | cut -d'"' -f2)
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "Bumped to version: $NEW_VERSION"
+
+    - name: Build package
+      run: python -m build
+
+    - name: Create Draft Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*
+        draft: true
+        name: Release v${{ steps.bump_version.outputs.new_version }}
+        tag_name: v${{ steps.bump_version.outputs.new_version }}
+        generate_release_notes: true
+        body: |
+          ## What's Changed
+          * Automated draft release for version ${{ steps.bump_version.outputs.new_version }}
+          * Please edit this draft with the actual changes before publishing
+
+    - name: Reset version
+      run: |
+        # Reset the version in files since this is just a draft
+        git checkout pyproject.toml CHANGELOG.md
+
   version:
     name: Update Version
     if: github.event_name == 'release' && github.event.action == 'published'

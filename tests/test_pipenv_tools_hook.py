@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -68,6 +70,46 @@ def test_chdir() -> None:
     assert Path.cwd() == original_dir
 
 
+def test_is_in_pipenv(hook: PipenvToolsHook) -> None:
+    """Test detection of Pipenv environment."""
+    # Test when not in Pipenv
+    assert not hook.is_in_pipenv()
+
+    # Test when in Pipenv
+    with patch.dict(os.environ, {"PIPENV_ACTIVE": "1"}):
+        assert hook.is_in_pipenv()
+
+
+def test_is_tool_installed(
+    hook: PipenvToolsHook, test_env: tuple[Path, Path, Path]
+) -> None:
+    """Test tool installation check."""
+    tmp_path, _, _ = test_env
+    project_dir = tmp_path / "project1"
+
+    # Test when tool is installed and we're in Pipenv
+    with patch.dict(os.environ, {"PIPENV_ACTIVE": "1"}):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            assert hook.is_tool_installed(project_dir)
+            mock_run.assert_called_once()
+
+    # Test when tool is installed but we're not in Pipenv
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        assert hook.is_tool_installed(project_dir)
+        mock_run.assert_called_once()
+
+    # Test when tool is not installed
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=1)
+        assert not hook.is_tool_installed(project_dir)
+
+    # Test when tool command raises FileNotFoundError
+    with patch("subprocess.run", side_effect=FileNotFoundError):
+        assert not hook.is_tool_installed(project_dir)
+
+
 def test_discover_pipfiles(
     hook: PipenvToolsHook, test_env: tuple[Path, Path, Path]
 ) -> None:
@@ -91,6 +133,11 @@ def test_get_controlling_pipfile(
     controlling_dir = hook.get_controlling_pipfile(file1)
     assert controlling_dir == project1_dir
 
+    # Test file outside project directories
+    outside_file = tmp_path / "outside.py"
+    outside_file.touch()
+    assert hook.get_controlling_pipfile(outside_file) is None
+
 
 def test_group_files_by_pipenv(
     hook: PipenvToolsHook, test_env: tuple[Path, Path, Path]
@@ -100,11 +147,26 @@ def test_group_files_by_pipenv(
     project1_dir = file1.parent.parent
     project2_dir = file2.parent.parent
 
-    # Group files
+    # Test with absolute paths
     grouped = hook.group_files_by_pipenv([str(file1), str(file2)])
     assert len(grouped) == 2
     assert file1 in grouped[project1_dir]
     assert file2 in grouped[project2_dir]
+
+    # Test with relative paths
+    with chdir(tmp_path):
+        relative_file1 = Path("project1/src/file1.py")
+        relative_file2 = Path("project2/src/file2.py")
+        grouped = hook.group_files_by_pipenv([str(relative_file1), str(relative_file2)])
+        assert len(grouped) == 2
+        assert (project1_dir / "src/file1.py").resolve() in grouped[project1_dir]
+        assert (project2_dir / "src/file2.py").resolve() in grouped[project2_dir]
+
+    # Test with file outside any Pipenv environment
+    outside_file = tmp_path / "outside.py"
+    outside_file.touch()
+    grouped = hook.group_files_by_pipenv([str(outside_file)])
+    assert not grouped
 
 
 def test_run_tool_success(
@@ -161,9 +223,55 @@ def test_run_tool_no_files(hook: PipenvToolsHook) -> None:
     assert result == FAILURE_CODE
 
 
+def test_run_tool_tool_not_installed(
+    hook: PipenvToolsHook, test_env: tuple[Path, Path, Path]
+) -> None:
+    """Test running tool when it's not installed."""
+    _, file1, _ = test_env
+    with patch.object(hook, "is_tool_installed", return_value=False):
+        result = hook.run_tool([str(file1)])
+        assert result == FAILURE_CODE
+
+
+def test_run_tool_subprocess_error(
+    hook: PipenvToolsHook, test_env: tuple[Path, Path, Path]
+) -> None:
+    """Test running tool when subprocess raises an error."""
+    _, file1, _ = test_env
+    with patch.object(hook, "is_tool_installed", return_value=True):
+        with patch(
+            "subprocess.run", side_effect=subprocess.CalledProcessError(1, "cmd")
+        ):
+            result = hook.run_tool([str(file1)])
+            assert result == FAILURE_CODE
+
+
+def test_run_tool_unexpected_error(
+    hook: PipenvToolsHook, test_env: tuple[Path, Path, Path]
+) -> None:
+    """Test running tool when an unexpected error occurs."""
+    _, file1, _ = test_env
+    with patch.object(hook, "is_tool_installed", return_value=True):
+        with patch("subprocess.run", side_effect=Exception("Unexpected error")):
+            result = hook.run_tool([str(file1)])
+            assert result == FAILURE_CODE
+
+
 def test_main_argument_parsing() -> None:
     """Test command-line argument parsing in main function."""
     test_args = ["--tool", TEST_TOOL, "--tool-args", "--fix", "file1.py"]
+    with patch.object(sys, "argv", ["script.py"] + test_args):
+        with patch.object(PipenvToolsHook, "run_tool", return_value=SUCCESS_CODE):
+            with pytest.raises(SystemExit) as exc_info:
+                from pipenv_tools_hook import main
+
+                main()
+            assert exc_info.value.code == SUCCESS_CODE
+
+
+def test_main_argument_parsing_no_tool_args() -> None:
+    """Test command-line argument parsing without tool arguments."""
+    test_args = ["--tool", TEST_TOOL, "file1.py"]
     with patch.object(sys, "argv", ["script.py"] + test_args):
         with patch.object(PipenvToolsHook, "run_tool", return_value=SUCCESS_CODE):
             with pytest.raises(SystemExit) as exc_info:
