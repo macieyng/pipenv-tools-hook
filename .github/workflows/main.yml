@@ -63,10 +63,10 @@ jobs:
         if-no-files-found: error
 
     - name: Run type checking
-      run: hatch run typecheck
+      run: hatch run typecheck:check
 
     - name: Run linting
-      run: hatch run lint
+      run: hatch run lint:style
 
   integration:
     name: Integration Test
