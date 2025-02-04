@@ -37,6 +37,39 @@ Issues = "https://github.com/yourusername/pipenv-tools-hook/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["pipenv_tools_hook"]
 
+[tool.hatch.envs.default]
+dependencies = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "coverage>=7.0.0",
+    "coverage-badge>=1.0.0",
+]
+
+[tool.hatch.envs.default.scripts]
+test = [
+    "pytest tests/ -v --cov=pipenv_tools_hook --cov-report=term-missing",
+]
+
+[tool.hatch.envs.lint]
+dependencies = [
+    "ruff>=0.3.0",
+]
+
+[tool.hatch.envs.lint.scripts]
+style = [
+    "ruff format --check .",
+    "ruff check .",
+]
+
+[tool.hatch.envs.typecheck]
+dependencies = [
+    "mypy>=1.8.0",
+    "types-setuptools",
+]
+
+[tool.hatch.envs.typecheck.scripts]
+check = "mypy pipenv_tools_hook tests"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
