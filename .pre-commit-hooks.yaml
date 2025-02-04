@@ -1,0 +1,9 @@
+- id: pipenv-tools
+  name: pipenv tools runner
+  description: Run Python tools (ruff, mypy, etc.) using pipenv in multiple environments
+  entry: pipenv-tools-hook
+  language: python
+  types: [python]
+  require_serial: true
+  minimum_pre_commit_version: '2.9.0'
+  pass_filenames: true
