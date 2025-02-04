@@ -90,19 +90,19 @@ def test_is_tool_installed(
     # Test when tool is installed and we're in Pipenv
     with patch.dict(os.environ, {"PIPENV_ACTIVE": "1"}):
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             assert hook.is_tool_installed(project_dir)
             mock_run.assert_called_once()
 
     # Test when tool is installed but we're not in Pipenv
     with patch("subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=0)
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         assert hook.is_tool_installed(project_dir)
         mock_run.assert_called_once()
 
     # Test when tool is not installed
     with patch("subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=1)
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
         assert not hook.is_tool_installed(project_dir)
 
     # Test when tool command raises FileNotFoundError
