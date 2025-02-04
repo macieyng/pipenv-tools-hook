@@ -133,7 +133,7 @@ jobs:
         echo "Current version: $CURRENT_VERSION"
 
         # Bump patch version without committing or creating a tag
-        bumpver update --patch --no-commit --tag-num
+        bumpver update --patch --no-commit
 
         # Get new version
         NEW_VERSION=$(grep '^version = ' pyproject.toml | cut -d'"' -f2)
