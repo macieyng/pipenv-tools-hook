@@ -197,7 +197,7 @@ jobs:
       run: |
         # Set version from release tag
         VERSION=${{ steps.get_version.outputs.VERSION }}
-        bumpver update --no-commit --no-tag --set-version $VERSION
+        bumpver update --no-commit --set-version $VERSION
         echo "new_version=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Commit changes
