@@ -124,3 +124,20 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 check_untyped_defs = true
+
+[tool.bumpver]
+current_version = "0.1.3"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "bump version {old_version} -> {new_version}"
+commit = true
+tag = true
+push = true
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    'version = "{version}"',
+    'current_version = "{version}"',
+]
+"CHANGELOG.md" = [
+    '^## \[{version}\]',
+]

@@ -49,6 +49,46 @@ class PipenvToolsHook:
         self._pipfile_cache: dict[Path, Path] = {}
         self.root_dir = Path.cwd().resolve()
 
+    def is_in_pipenv(self: PipenvToolsHook) -> bool:
+        """Check if we're already running inside a Pipenv environment.
+
+        Returns:
+            bool: True if running in a Pipenv environment, False otherwise
+        """
+        return "PIPENV_ACTIVE" in os.environ
+
+    def is_tool_installed(self: PipenvToolsHook, pipfile_dir: Path) -> bool:
+        """Check if the tool is installed in the Pipenv environment.
+
+        Args:
+            pipfile_dir: Directory containing the Pipfile
+
+        Returns:
+            bool: True if the tool is installed, False otherwise
+        """
+        with chdir(pipfile_dir):
+            try:
+                # First check if we're in a Pipenv environment
+                if self.is_in_pipenv():
+                    # If we are, just try to run the tool with --version
+                    result = subprocess.run(
+                        [self.tool, "--version"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                else:
+                    # If not, use pipenv run
+                    result = subprocess.run(
+                        ["pipenv", "run", self.tool, "--version"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                return result.returncode == 0
+            except FileNotFoundError:
+                return False
+
     def discover_pipfiles(self: PipenvToolsHook, start_dir: Path) -> dict[Path, Path]:
         """Scan directory tree and cache Pipfile locations.
 
@@ -145,14 +185,35 @@ class PipenvToolsHook:
 
         for pipfile_dir, file_group in grouped_files.items():
             with chdir(pipfile_dir):
+                # Check if the tool is installed
+                if not self.is_tool_installed(pipfile_dir):
+                    sys.stderr.write(
+                        f"Error: {self.tool} is not installed in the"
+                        f" Pipenv environment at {pipfile_dir}\n"
+                        f"Please install it using: pipenv install {self.tool}\n",
+                    )
+                    return 1
+
                 try:
                     # Convert paths to strings relative to the Pipfile directory
                     relative_paths = [
                         str(f.relative_to(pipfile_dir)) for f in file_group
                     ]
 
+                    # If we're already in a Pipenv environment, don't use 'pipenv run'
+                    if self.is_in_pipenv():
+                        cmd = [self.tool, *self.tool_args, *relative_paths]
+                    else:
+                        cmd = [
+                            "pipenv",
+                            "run",
+                            self.tool,
+                            *self.tool_args,
+                            *relative_paths,
+                        ]
+
                     result = subprocess.run(
-                        ["pipenv", "run", self.tool, *self.tool_args, *relative_paths],
+                        cmd,
                         capture_output=True,
                         text=True,
                         check=False,
@@ -197,6 +258,7 @@ def main() -> None:
     # Split files from tool args if they were mixed
     tool_args = []
     files = []
+
     if args.tool_args:
         # Find the first argument that looks like a file path
         for i, arg in enumerate(args.tool_args):
