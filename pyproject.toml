@@ -47,7 +47,7 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 test = [
-    "pytest tests/ -v --cov=pipenv_tools_hook --cov-report=term-missing",
+    "pytest tests/ -v --cov=pipenv_tools_hook --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy",
 ]
 
 [tool.hatch.envs.lint]
@@ -68,7 +68,7 @@ dependencies = [
 ]
 
 [tool.hatch.envs.typecheck.scripts]
-check = "mypy pipenv_tools_hook tests"
+check = "mypy pipenv_tools_hook.py tests/test_pipenv_tools_hook.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

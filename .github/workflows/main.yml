@@ -12,8 +12,37 @@ permissions:
   pull-requests: write  # Needed for coverage comments
 
 jobs:
+  typecheck:
+    name: Type Check (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        cache-dependency-path: pyproject.toml
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install hatch
+
+    - name: Run type checking
+      run: hatch run typecheck:check
+
+    - name: Run linting
+      run: hatch run lint:style
+
   test:
-    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -31,9 +60,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
-        cache-dependency-path: |
-          pyproject.toml
-          requirements*.txt
+        cache-dependency-path: pyproject.toml
 
     - name: Install dependencies
       run: |
@@ -53,6 +80,12 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+
     - name: Store coverage report
       uses: actions/upload-artifact@v4
       with:
@@ -62,15 +95,9 @@ jobs:
           coverage.svg
         if-no-files-found: error
 
-    - name: Run type checking
-      run: hatch run typecheck:check
-
-    - name: Run linting
-      run: hatch run lint:style
-
   integration:
     name: Integration Test
-    needs: test
+    needs: [test, typecheck]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -181,7 +208,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: [test, integration]
+    needs: [test, typecheck, integration]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     steps:
